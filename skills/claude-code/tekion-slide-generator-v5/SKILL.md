@@ -1,6 +1,6 @@
 ---
 name: tekion-slide-generator-v5
-description: "TEKION Slide Generator v5（Claude Code版・Codex駆動） — Codex（ChatGPT/Codexサブスクリプション枠）の内蔵 gpt-image-2 でプレゼンスライドを生成する。OpenAI API の従量課金を使わず、サブスク枠で画像を作りたいときに使う。「Codexでスライドを作って」「サブスク枠でスライド」「Codex App Serverでスライド生成」で発動。Markdown/テキスト→デザインガイドライン→Codex経由の並列画像生成→PPTX/PDF。16:9・ロゴ・フッター焼き込み対応。API従量課金で生成したいときは provider を openai/gemini に切り替える。"
+description: "TEKION Slide Generator v5（Claude Code版） — Markdown/テキストから日本語プレゼンスライド（16:9）を生成し PPTX/PDF まで書き出す。ユーザーが『スライドを作って』『プレゼン資料/提案書/企画書/ピッチデッキにして』『この資料をデッキ化』『登壇用の資料』のようにスライド作成を求めたら、ツール名を明示しなくても使うこと。画像生成は Codex 内蔵 gpt-image-2 を使い、ChatGPT/Codex のサブスク枠なら API 従量課金なしで作れる（Codex 未導入や API 課金がよければ provider を openai/gemini に切替）。Visual/Balanced 2スタイル、TEKION ブランド/ロゴ適用、子 codex exec 並列生成、16:9・フッター焼き込み対応。Claude Code を入口に設計→生成→特定スライド再生成のリレーをしたいときに最適。"
 ---
 
 # TEKION Slide Generator v5 — Claude Code版（Codex駆動）

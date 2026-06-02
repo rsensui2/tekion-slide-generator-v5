@@ -1,6 +1,6 @@
 ---
 name: "tekion-slide-generator-v5"
-description: "Markdown/テキストから日本語プレゼンスライド（16:9）を作り、PPTX/PDF として書き出す。Codex 内蔵の画像生成（gpt-image-2, $imagegen）をそのまま使うため OPENAI_API_KEY 不要・ChatGPT/Codex のサブスク枠で完結する。『スライドを作って』『プレゼン資料を作って』『この資料を提案書スライドに』のような依頼で使う。各スライドを画像として生成し、16:9 正規化・ロゴ・フッターを焼き込み、PPTX と PDF を出力する。デザイン提案書・営業資料・登壇ピッチに向く。"
+description: "TEKION Slide Generator v5（Codexネイティブ版） — Markdown/テキストから日本語プレゼンスライド（16:9）を作り PPTX/PDF まで書き出す。『スライドを作って』『プレゼン資料/提案書/企画書/ピッチデッキにして』『この資料をデッキ化』『登壇用の資料』のようにスライド作成を求められたら、ツール名を言わなくても使うこと。Codex 内蔵の画像生成（gpt-image-2 / $imagegen）をそのまま使うため OPENAI_API_KEY 不要・ChatGPT/Codex のサブスク枠だけで完結（必要なら --billing api で OpenAI API 従量課金も可）。TEKION ブランド（プリセット）適用・子 codex exec 並列生成・16:9 正規化・ロゴ/フッター焼き込み・PPTX/PDF 出力。デザイン提案書・営業資料・登壇ピッチ向け。"
 ---
 
 # TEKION Slide Generator（Codexネイティブ版）
