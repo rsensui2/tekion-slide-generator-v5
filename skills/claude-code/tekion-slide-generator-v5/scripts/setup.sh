@@ -5,7 +5,7 @@ SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo ""
 echo "============================================"
-echo "  TEKION Slide Generator v4 — Codex版"
+echo "  TEKION Slide Generator v5 — Codex版"
 echo "  セットアップ"
 echo "============================================"
 echo ""

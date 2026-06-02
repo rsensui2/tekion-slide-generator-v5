@@ -2,7 +2,7 @@
 """
 フッターウォーターマーク焼き込みユーティリティ
 
-PIL.ImageDraw で画像中央下に固定文字列 "TEKION Slide Generator v4" を焼き込む。
+PIL.ImageDraw で画像中央下に固定文字列 "TEKION Slide Generator v5" を焼き込む。
 画像生成パイプライン (generate_slide_with_retry.py / providers/openai.py) で
 PNG 保存前に各スライド画像へ適用され、以降の全ての配布物（PNG/PPTX/PDF）に
 ブランド透かしが乗る。
@@ -14,7 +14,7 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 
-FOOTER_TEXT = "TEKION Slide Generator v4"
+FOOTER_TEXT = "TEKION Slide Generator v5"
 FOOTER_COLOR = (156, 163, 175, 255)  # Gray-400 / RGBA
 FOOTER_FONT_PATH = "/System/Library/Fonts/Helvetica.ttc"
 FOOTER_FONT_SIZE_RATIO = 0.015        # 画像高さに対する比率

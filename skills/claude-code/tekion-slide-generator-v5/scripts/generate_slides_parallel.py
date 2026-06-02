@@ -23,7 +23,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Generate slides in parallel from prompt files (v4 - Gemini/OpenAI両対応)'
+        description='Generate slides in parallel from prompt files (v5 - Gemini/OpenAI両対応)'
     )
     parser.add_argument('--prompts-dir', required=True, help='Directory containing prompt text files (*.txt)')
     parser.add_argument('--output-dir', required=True, help='Output directory for slide images')
@@ -175,7 +175,7 @@ def main():
     }.get(args.provider, "gpt-image-2")
 
     print("=" * 70)
-    print(f"Phase 4: Parallel Slide Generation (v4 - provider={args.provider})")
+    print(f"Phase 4: Parallel Slide Generation (v5 - provider={args.provider})")
     print("=" * 70)
     print(f"Provider:          {args.provider}")
     print(f"Model:             {model_label}")
