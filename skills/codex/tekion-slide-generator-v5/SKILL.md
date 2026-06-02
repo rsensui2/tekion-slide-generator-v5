@@ -33,31 +33,59 @@ PY="python3"
 ```bash
 TS=$(date +%Y-%m-%d_%H%M)
 WORK="${OUTPUT_DIR:-.}/slides_${TS}"      # OUTPUT_DIR 未指定ならカレント
-mkdir -p "${WORK}/raw" "${WORK}/images"
+mkdir -p "${WORK}/json" "${WORK}/prompts" "${WORK}/raw" "${WORK}/images"
 ```
 
-### Phase 1: デザイン方針（簡潔に決める）
+### Phase 1: デザインガイドライン（ブランド適用｜重要）
 
-入力（Markdown/テキスト/依頼内容）を読み、以下を1〜2文で決める。スライド全体で一貫させる。
-- カラーパレット（例: ネイビー基調＋ブルー/ティールのアクセント、白背景）
-- トーン（営業資料＝図解と要点／登壇＝余白広め・ビジュアル主役）
-- フォント感（太字見出し＋簡潔な本文）
-- **言語: スライド上の全テキストは日本語**（固有名詞のみ英語可）
+**ブランド（配色・フォント・レイアウト）は自分で文章にせず、プリセットを通すこと。**
+これを省くとブランドが効かず毎回バラバラの見た目になる。プリセットは `references/presets/*.md` に定義され、
+`design_guidelines.md` として使う。既定の `example-preset.md` は
+**TEKION ブランド（Primary オレンジ #EA5514・白背景・60-30-10 ルール・Pattern A〜K）**。
 
-### Phase 2: スライド構成
+```bash
+PRESET="${SKILL_DIR}/references/presets/example-preset.md"   # 既定 = TEKION
+# 自社ブランドにするなら presets/ に自前 .md を作り、ここを差し替える
+cp "${PRESET}" "${WORK}/design_guidelines.md"
+```
 
-各スライドについて `{ファイル名, プロンプト}` を決める。命名は `00_cover` / `01_xxx` … `99_cta`。
-構成目安: 表紙 → 課題 → ソリューション → 詳細/比較 → まとめ → CTA。
+### Phase 2: slides_plan.json（構成・テキストのみ）
 
-プロンプトに必ず含める:
-- レイアウト指示（全面ビジュアル／見出し＋3-5箇条／3ステップ図 等）
-- 表示テキスト全文（タイトル・箇条書き・数値）
-- 配色・アクセントの使い方
-- **「16:9 横長、2K 相当の高精細、スライド上の全テキストは日本語」** を毎回明記
+各スライドを JSON で記述する。**配色・カラーコード・デザイン演出は書かない（プリセットが担当）。**
+テキストとレイアウトの意図だけを書く。`source_file` は共通名（例 `"deck"`）、`slide_number` は連番。
 
-### Phase 3: 画像生成（既定 = 並列。サブスク枠で完結）
+```json
+{
+  "slides": [
+    {"slide_number":1,"source_file":"deck","title":"タイトル","subtitle":"サブ","content":"講座タイトルスライド（表紙）。中央に大見出し＋サブ。テキストとレイアウトのみ記述（色は書かない）"},
+    {"slide_number":2,"source_file":"deck","title":"見出し","content":"見出し＋3-5項目の箇条書き、または2-3ブロックの図解。表示テキストを全文記述"}
+  ],
+  "total_slides": 2
+}
+```
 
-**既定は B（並列）。** 速くて大量にも強い。**1〜2枚のごく少数のときだけ A（in-loop）**に切り替える。
+- 必須: `slide_number` / `source_file` / `title` / `content`。任意: `subtitle` / `key_message` / `_style`（`visual`/`balanced`）。
+- 表紙は content に「講座タイトルスライド（表紙）」、中扉は「中扉スライド」と書くと専用レイアウトになる。
+- 保存: `${WORK}/json/slides_plan.json`。検証: `${PY} "${SKILL_DIR}/scripts/validate_slides_json.py" --file "${WORK}/json/slides_plan.json"`。
+
+### Phase 3: プロンプト生成（デザイン注入）
+
+slides_plan.json ＋ design_guidelines.md を Jinja2 テンプレに通し、**ブランド配色・レイアウト・ロゴ指示が
+注入された**プロンプトを作る。ここがブランド適用の要。
+
+```bash
+${PY} "${SKILL_DIR}/scripts/generate_prompts_from_json.py" \
+  --session-dir "${WORK}" --json-file json/slides_plan.json --output-dir prompts \
+  --design-guidelines "${WORK}/design_guidelines.md" --style balanced --image-size 2K
+```
+
+- `--style balanced`（営業資料・提案書）/ `visual`（登壇・ピッチ）。スライド毎は JSON の `_style` で上書き可。
+- 出力: `${WORK}/prompts/<source_file>_NN.txt`（プリセットの配色等が各プロンプトに焼き込まれる）。
+
+### Phase 4: 画像生成（既定 = 並列。サブスク枠で完結）
+
+**既定は B（並列）。** Phase 3 で出来たプロンプトを子 codex exec で並列生成する。
+**1〜2枚のごく少数のときだけ A（in-loop）**でもよい。
 いずれも `OPENAI_API_KEY` は使わない＝**サブスク枠の gpt-image-2** で生成（API課金にならない）。
 
 #### B. 並列（既定 / 子 codex exec を並列起動）
@@ -65,8 +93,7 @@ mkdir -p "${WORK}/raw" "${WORK}/images"
 各スライドを**独立した子 codex exec** に投げ、サブスク枠の gpt-image-2 を並列で叩く
 （**実測: 2K で並列20→20枚を約67秒**。逐次なら20分相当）。
 
-1. Phase 2 の各スライドのプロンプトを **`${WORK}/prompts/<ファイル名>.txt`** に書き出す（`00_cover.txt` 等）。
-2. 並列生成（warmup・認証コピー・**レート制限フォールバックは内部で自動**）:
+Phase 3 で生成したプロンプト（`${WORK}/prompts/`）を並列生成（warmup・認証コピー・**レート制限フォールバックは内部で自動**）:
 
 ```bash
 ${PY} "${SKILL_DIR}/scripts/generate_parallel.py" \
@@ -95,11 +122,11 @@ ${PY} "${SKILL_DIR}/scripts/generate_parallel.py" \
 
 #### A. in-loop（1〜2枚のときだけ / 内蔵 image_gen を1枚ずつ＝逐次）
 
-1. 内蔵画像生成ツール（`$imagegen` / image_gen）で Phase 2 のプロンプトを **16:9・2K** で1枚生成。
-2. 生成物（既定 `$CODEX_HOME/generated_images/...`）を **`${WORK}/raw/<ファイル名>.png` に move/copy**。
+1. 内蔵画像生成ツール（`$imagegen` / image_gen）で Phase 3 のプロンプト（`${WORK}/prompts/<名前>.txt`）を **16:9・2K** で1枚生成。
+2. 生成物（既定 `$CODEX_HOME/generated_images/...`）を **`${WORK}/raw/<名前>.png` に move/copy**。
 3. くり返す。子プロセスを起こさない分わずかに軽いが、枚数が増えると遅い。
 
-### Phase 4: 仕上げ（16:9正規化・ロゴ・フッター）
+### Phase 5: 仕上げ（16:9正規化・ロゴ・フッター）
 
 内蔵生成は厳密な 16:9 やフッターを保証しないため、ここで確定的に仕上げる。
 
@@ -112,8 +139,9 @@ ${PY} "${SKILL_DIR}/scripts/finalize_slides.py" \
 ```
 
 ロゴ不要と言われたら `--logo` を省略する。
+（Phase 3 のテンプレにもロゴ指示は入るが、ロゴは実画像を確実に焼くためここでローカル合成する。）
 
-### Phase 5: PPTX/PDF 出力
+### Phase 6: PPTX/PDF 出力
 
 ```bash
 ${PY} "${SKILL_DIR}/scripts/export_to_pptx.py" \
@@ -126,13 +154,14 @@ ${PY} "${SKILL_DIR}/scripts/export_to_pdf.py" \
 
 ## 特定スライドの作り直し
 
-気になるスライドだけ、プロンプトを調整して image_gen で再生成し `${WORK}/raw/<名前>.png` を上書き →
-`finalize_slides.py` を再実行 → Phase 5 で出力し直す。バージョンを残したいなら `<名前>_v2.png` 等にする
-（export は同名ベースの最新版を自動採用）。
+気になるスライドだけ slides_plan.json の content を直し、Phase 3（そのスライドのみ）→ Phase 4 →
+Phase 5 を回して `${WORK}/raw/<名前>.png` を更新 → Phase 6 で出力し直す。バージョンを残したいなら
+`<名前>_v2.png` 等にする（export は同名ベースの最新版を自動採用）。
 
 ## 注意
 
-- `OPENAI_API_KEY` を環境に置かない（内蔵＝サブスク枠を維持するため。あると従量課金に切替わる）。
+- **ブランドは必ず Phase 1→3 を通す**（プリセット→テンプレ注入）。生プロンプト直書きはブランドが効かない。
+- `OPENAI_API_KEY` を環境に置かない（既定サブスク枠を維持するため。`--billing api` 指定時のみ使う）。
 - 解像度は `--image-size` で 512px/1K/2K/4K（既定 2K、すべて 16:9）。
 - 速度: 少枚数は A（in-loop）、大量は B（`generate_parallel.py` の子 codex exec 並列、最大20実証）。
-- このスキルは ChatGPT/Codex 契約のみで完結（Claude も OpenAI API キーも不要）。
+- このスキルは ChatGPT/Codex 契約のみで完結（Claude も OpenAI API キーも不要。`--billing api` 時のみ OpenAI キー）。
