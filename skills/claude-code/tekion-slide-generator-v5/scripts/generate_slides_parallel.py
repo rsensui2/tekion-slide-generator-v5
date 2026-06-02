@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-nano-banana Slide Generator v4 - 並列スライド画像生成スクリプト
+TEKION Slide Generator v5 - 並列スライド画像生成スクリプト
 Phase 4: 複数のプロンプトファイルからスライド画像を並列生成
 
-v4:
+v5:
   - Gemini / OpenAI (gpt-image-2) 両対応（--provider）
   - スライドごとのグラウンディング制御（--grounding-map、Geminiのみ）
   - 解像度選択（--image-size、両プロバイダ共通ラベル）

@@ -23,10 +23,10 @@ slide-generator を自社向けにカスタマイズする完全ガイド。
 
 ```bash
 # 既存のサンプルを退避してから上書き
-mv ~/.claude/skills/tekion-slide-generator-v4/assets/logo.png \
-   ~/.claude/skills/tekion-slide-generator-v4/assets/logo.png.sample
+mv ~/.claude/skills/tekion-slide-generator-v5/assets/logo.png \
+   ~/.claude/skills/tekion-slide-generator-v5/assets/logo.png.sample
 cp ~/Downloads/mycompany-logo.png \
-   ~/.claude/skills/tekion-slide-generator-v4/assets/logo.png
+   ~/.claude/skills/tekion-slide-generator-v5/assets/logo.png
 ```
 
 ### 推奨仕様
@@ -52,7 +52,7 @@ cp ~/Downloads/mycompany-logo.png \
 ### 2.1 プリセットをコピー
 
 ```bash
-cd ~/.claude/skills/tekion-slide-generator-v4
+cd ~/.claude/skills/tekion-slide-generator-v5
 cp references/presets/example-preset.md references/presets/mycompany.md
 ```
 
@@ -157,7 +157,7 @@ SESSION=~/Desktop/slides_output/my_project
 mkdir -p ${SESSION}/{json,prompts,images}
 
 # 自社プリセットをコピー
-cp ~/.claude/skills/tekion-slide-generator-v4/references/presets/mycompany.md \
+cp ~/.claude/skills/tekion-slide-generator-v5/references/presets/mycompany.md \
    ${SESSION}/design_guidelines.md
 
 # あとは通常のフロー（スキル経由なら自動）
@@ -176,7 +176,7 @@ cp ~/.claude/skills/tekion-slide-generator-v4/references/presets/mycompany.md \
 ### 手順
 
 ```bash
-cd ~/.claude/skills/tekion-slide-generator-v4/templates
+cd ~/.claude/skills/tekion-slide-generator-v5/templates
 
 # Balanced版をベースにFork
 cp prompt_template_balanced.j2 prompt_template_mycompany.j2

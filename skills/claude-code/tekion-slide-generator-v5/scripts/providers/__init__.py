@@ -1,4 +1,4 @@
-"""nano-banana Slide Generator v4 - Image generation providers.
+"""TEKION Slide Generator v5 - Image generation providers.
 
 Provider抽象レイヤ。Gemini / OpenAI など複数の画像生成プロバイダを統一APIで扱う。
 """

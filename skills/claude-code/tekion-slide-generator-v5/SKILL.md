@@ -1,12 +1,12 @@
 ---
 name: tekion-slide-generator-v5
-description: "TEKION Slide Generator v5（Claude Code版・Codex駆動） — Codex（ChatGPT/Codexサブスクリプション枠）の内蔵 gpt-image-2 でプレゼンスライドを生成する。OpenAI API の従量課金を使わず、サブスク枠で画像を作りたいときに使う。「Codexでスライドを作って」「サブスク枠でスライド」「Codex App Serverでスライド生成」で発動。Markdown/テキスト→デザインガイドライン→Codex経由の並列画像生成→PPTX/PDF。16:9・ロゴ・フッター焼き込み対応。API従量課金版が必要なときは tekion-slide-generator-v4 を使う。"
+description: "TEKION Slide Generator v5（Claude Code版・Codex駆動） — Codex（ChatGPT/Codexサブスクリプション枠）の内蔵 gpt-image-2 でプレゼンスライドを生成する。OpenAI API の従量課金を使わず、サブスク枠で画像を作りたいときに使う。「Codexでスライドを作って」「サブスク枠でスライド」「Codex App Serverでスライド生成」で発動。Markdown/テキスト→デザインガイドライン→Codex経由の並列画像生成→PPTX/PDF。16:9・ロゴ・フッター焼き込み対応。API従量課金で生成したいときは provider を openai/gemini に切り替える。"
 ---
 
 # TEKION Slide Generator v5 — Claude Code版（Codex駆動）
 
-現行 `tekion-slide-generator-v4` の派生。画像生成のバックエンドだけを
-**OpenAI API（従量課金）→ Codex 内蔵 gpt-image-2（サブスク枠）** に差し替えた版。
+TEKION Slide Generator の **Codex 駆動版**。画像生成のバックエンドを
+**OpenAI API（従量課金）から Codex 内蔵 gpt-image-2（サブスク枠）** に差し替えた版。
 モデルは同じ gpt-image-2 なので品質は同等、課金だけが ChatGPT/Codex サブスクに乗る。
 
 **コスト原則**: Codex 起動時に `OPENAI_API_KEY` を環境から除去する（残っていると公式仕様で
