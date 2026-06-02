@@ -1,0 +1,61 @@
+TEKION Slide Generator v5 License
+Copyright (c) 2026 TEKION. All rights reserved.
+
+これはソース公開（source-available）のプロプライエタリ・ライセンスであり、
+OSI の定義する「オープンソース」ライセンスではありません。
+This is a source-available, proprietary license. It is NOT an open-source license.
+
+--------------------------------------------------------------------------------
+日本語（正文）
+--------------------------------------------------------------------------------
+
+1. 定義
+   「本ソフトウェア」: 本リポジトリに含まれる一切のコード、SKILL.md、スクリプト、
+   テンプレート、ブランド資産（ロゴ等）、ドキュメントを指す。
+   「利用者」: 本ソフトウェアにアクセスする個人または法人。
+
+2. 許諾（できること）
+   利用者は、本ソフトウェアを **未改変のまま** 閲覧・複製（clone）・実行し、
+   プレゼンスライド等の成果物を生成できる。**商用利用を含む。**
+   生成した成果物（スライド画像・PPTX/PDF 等）は利用者に帰属する。
+
+3. 禁止事項（TEKION の事前の書面による許可なく行ってはならない）
+   (a) 本ソフトウェアの改変、または派生物（derivative works）の作成。
+   (b) 本ソフトウェアの全部または一部の再配布・公開・再ライセンス・販売。
+   (c) 著作権表示・ライセンス表示・帰属表示の削除や改変
+       （スライドに焼き込まれる "TEKION Slide Generator v5" フッター、
+        および同梱ロゴを含む）。
+   注: GitHub 利用規約により、公開リポジトリの fork・閲覧は GitHub 利用者に
+   許容されるが、これは上記を超える改変・再配布の権利を一切付与しない。
+
+4. ブランド資産
+   "TEKION" の名称およびロゴは TEKION の商標／ブランド資産であり、同梱された
+   状態での利用に限り許諾される。自社ブランドへの差し替えは、別途の許可または
+   ブランドガイドラインに従う場合に限る。
+
+5. 許可の申請
+   改変・再配布その他、本ライセンスで禁止された行為を希望する場合は、
+   事前に TEKION（リポジトリ所有者経由）へ書面で申請し、許可を得ること。
+
+6. 無保証・免責
+   本ソフトウェアは「現状有姿」で提供され、明示黙示を問わずいかなる保証も行わない。
+   本ソフトウェアの利用または利用不能から生じたいかなる損害についても、
+   権利者は責任を負わない。
+
+7. 第三者サービス
+   画像生成は利用者自身の ChatGPT / Codex（または OpenAI / Gemini API）アカウントで
+   実行され、各サービスの利用規約・レート制限・課金体系に従う。
+
+--------------------------------------------------------------------------------
+English (summary / reference)
+--------------------------------------------------------------------------------
+
+You may view, clone, and run this Software AS-IS, including for commercial purposes,
+to generate slides and related output (your output is yours). You may NOT, without
+TEKION's prior written permission: (a) modify or create derivative works; (b) redistribute,
+publish, sublicense, or sell the Software or any part; (c) remove or alter copyright,
+license, attribution notices, the burned-in "TEKION Slide Generator v5" footer, or the
+bundled logo. GitHub's Terms of Service permit forking/viewing of public repositories but
+grant no additional modification or redistribution rights. "TEKION" and its logo are
+trademarks/brand assets of TEKION. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND. For permissions, contact TEKION via the repository owner.
