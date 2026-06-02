@@ -2,10 +2,12 @@
 """Codex 駆動ブリッジ — gpt-image-2 を Codex（ChatGPT/Codex サブスク枠）で叩く。
 
 このモジュールの役割は「プロンプト1枚 → 画像バイト列」を Codex 経由で得ること。
-画像生成のバックエンドは OpenAI API ではなく **Codex CLI に内蔵された画像生成
-ツール（gpt-image-2）** であり、ChatGPT/Codex のサブスクリプション枠で課金される。
-従量課金の API に切り替わらないよう、Codex を起動する際は環境変数から
-`OPENAI_API_KEY` を必ず除去する（これが本モジュール最大のコストガード）。
+画像生成のバックエンドは Codex CLI 内蔵の gpt-image-2。課金モードを選べる:
+- subscription（既定）: ChatGPT/Codex サブスク枠。`OPENAI_API_KEY` を**除去**して起動
+  （環境にキーが残っていて気づかず従量課金される事故を防ぐ安全策）。
+- api: OpenAI API 従量課金。`OPENAI_API_KEY` を使って起動する。
+モードは generate_image(billing=...) / 環境変数 CODEX_SLIDES_BILLING で指定し、
+実行時にどちらかをログへ明示する（黙って剥がさない）。
 
 2 つのバックエンドを持つ:
 
@@ -61,14 +63,19 @@ class CodexResult:
 
 # --- 共通ヘルパ -------------------------------------------------------------
 
-def _subscription_env(codex_home: Optional[str] = None) -> dict:
-    """Codex を「サブスク枠」で動かすための環境変数を作る。
+def _codex_env(codex_home: Optional[str] = None, use_api_key: bool = False) -> dict:
+    """Codex 実行用の環境変数を作る（課金モードを制御）。
 
-    OPENAI_API_KEY が残っていると Codex は API 従量課金に切り替わってしまう
-    （公式仕様）。コスト目的が崩れるため明示的に取り除く。
+    Codex は公式仕様で「OPENAI_API_KEY があれば API 従量課金、無ければサブスク枠」。
+    - use_api_key=False（既定/サブスク枠）: OPENAI_API_KEY を**除去**する。これは、
+      環境にキーが残っていて気づかず従量課金される事故を防ぐ安全策。
+    - use_api_key=True（API 課金モード）: キーをそのまま残す（Codex が API 課金で生成）。
     codex_home を渡すと CODEX_HOME を上書きし、生成物を隔離する。
     """
-    env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
+    if use_api_key:
+        env = dict(os.environ)
+    else:
+        env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
     if codex_home:
         env["CODEX_HOME"] = codex_home
     return env
@@ -121,7 +128,7 @@ def warmup_auth(timeout: int = 90) -> bool:
     try:
         proc = subprocess.run(
             [CODEX_BIN, "exec", "--skip-git-repo-check", "-c", "model_reasoning_effort=low", "ok"],
-            capture_output=True, text=True, timeout=timeout, env=_subscription_env(),
+            capture_output=True, text=True, timeout=timeout, env=_codex_env(),
         )
         blob = (proc.stderr or "") + (proc.stdout or "")
         if "token_revoked" in blob or "refresh_token_reused" in blob or "sign in again" in blob:
@@ -183,6 +190,7 @@ def _generate_via_exec(
     image_size: str,
     aspect: str,
     timeout: int,
+    billing: str = "subscription",
 ) -> CodexResult:
     """``codex exec --full-auto`` を1回実行して画像を得る。"""
     instruction = _build_instruction(prompt, output_path, image_size, aspect)
@@ -203,7 +211,9 @@ def _generate_via_exec(
         instruction,
     ]
     slide_name = os.path.basename(output_path)
-    print(f"🎨 Codex(exec)生成開始: {slide_name} ({aspect}/{image_size})", file=sys.stderr)
+    use_api = (billing == "api")
+    print(f"🎨 Codex(exec)生成開始: {slide_name} ({aspect}/{image_size}) [{_billing_label(billing)}]",
+          file=sys.stderr)
 
     try:
         proc = subprocess.run(
@@ -211,7 +221,7 @@ def _generate_via_exec(
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=_subscription_env(codex_home),
+            env=_codex_env(codex_home, use_api_key=use_api),
         )
 
         # 1) 指定パスに保存されていればそれを採用
@@ -248,6 +258,7 @@ def _generate_via_app_server(
     image_size: str,
     aspect: str,
     timeout: int,
+    billing: str = "subscription",
 ) -> CodexResult:
     """``codex app-server`` を stdio JSON-RPC で駆動して画像を得る（experimental）。
 
@@ -259,7 +270,8 @@ def _generate_via_app_server(
     os.makedirs(out_dir, exist_ok=True)
     codex_home = _make_isolated_home()
     slide_name = os.path.basename(output_path)
-    print(f"🎨 Codex(app-server)生成開始: {slide_name} ({aspect}/{image_size})", file=sys.stderr)
+    print(f"🎨 Codex(app-server)生成開始: {slide_name} ({aspect}/{image_size}) [{_billing_label(billing)}]",
+          file=sys.stderr)
 
     proc = subprocess.Popen(
         [CODEX_BIN, "app-server"],
@@ -268,7 +280,7 @@ def _generate_via_app_server(
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
-        env=_subscription_env(codex_home),
+        env=_codex_env(codex_home, use_api_key=(billing == "api")),
     )
 
     _req_id = {"n": 0}
@@ -379,6 +391,28 @@ def resolve_backend(backend: str = "auto") -> str:
     return "exec"
 
 
+def resolve_billing(billing: str = "auto") -> str:
+    """課金モードを解決する。
+
+    優先順位: 明示引数 > 環境変数 CODEX_SLIDES_BILLING > 既定(subscription)。
+    - "subscription": ChatGPT/Codex サブスク枠（OPENAI_API_KEY を除去）。既定。
+    - "api":          OpenAI API 従量課金（OPENAI_API_KEY を使う）。
+    """
+    if billing and billing != "auto":
+        return billing
+    env_billing = os.environ.get("CODEX_SLIDES_BILLING", "").strip().lower()
+    if env_billing in ("subscription", "api"):
+        return env_billing
+    return "subscription"
+
+
+def _billing_label(billing: str) -> str:
+    if billing == "api":
+        has_key = bool(os.environ.get("OPENAI_API_KEY"))
+        return "API従量課金" if has_key else "API指定だがキー無し→サブスク枠"
+    return "サブスク枠"
+
+
 def generate_image(
     prompt: str,
     output_path: str,
@@ -386,11 +420,12 @@ def generate_image(
     image_size: str = "2K",
     aspect: str = "16:9",
     backend: str = "auto",
+    billing: str = "auto",
     max_retries: int = 3,
     retry_delay: float = 2.0,
     timeout: int = DEFAULT_EXEC_TIMEOUT,
 ) -> CodexResult:
-    """Codex（サブスク枠）で画像を1枚生成し、バイト列を返す。
+    """Codex で画像を1枚生成し、バイト列を返す。
 
     Args:
         prompt: 画像生成プロンプト本文
@@ -398,6 +433,7 @@ def generate_image(
         image_size: 共通解像度ラベル（512px/1K/2K/4K）
         aspect: アスペクト比指示（既定 16:9）
         backend: "auto" | "exec" | "app-server"
+        billing: "auto" | "subscription"（既定・サブスク枠）| "api"（OpenAI API 従量課金）
         max_retries: 失敗時の再試行回数
         retry_delay: 初回リトライ待機秒（指数バックオフ）
         timeout: 1回あたりの上限秒
@@ -406,6 +442,7 @@ def generate_image(
         CodexResult（ok / image_bytes / error / attempts / backend）
     """
     chosen = resolve_backend(backend)
+    bill = resolve_billing(billing)
     runner = _generate_via_app_server if chosen == "app-server" else _generate_via_exec
 
     last_error = None
@@ -415,12 +452,12 @@ def generate_image(
             print(f"⏳ リトライ {attempt}/{max_retries} (待機 {wait:.1f}s): {os.path.basename(output_path)}",
                   file=sys.stderr)
             time.sleep(wait)
-        result = runner(prompt, output_path, image_size, aspect, timeout)
+        result = runner(prompt, output_path, image_size, aspect, timeout, bill)
         result.attempts = attempt
         if result.ok:
             return result
         last_error = result.error
-        print(f"⚠️  Codex生成失敗 ({chosen}) try{attempt}: {last_error}", file=sys.stderr)
+        print(f"⚠️  Codex生成失敗 ({chosen}/{bill}) try{attempt}: {last_error}", file=sys.stderr)
 
     return CodexResult(ok=False, error=last_error or "unknown", attempts=max_retries, backend=chosen)
 
@@ -435,13 +472,15 @@ def _main() -> int:
     ap.add_argument("--image-size", default="2K")
     ap.add_argument("--aspect", default="16:9")
     ap.add_argument("--backend", default="auto", choices=["auto", "exec", "app-server"])
+    ap.add_argument("--billing", default="auto", choices=["auto", "subscription", "api"],
+                    help="subscription=サブスク枠(既定) / api=OpenAI API従量課金")
     ap.add_argument("--max-retries", type=int, default=2)
     args = ap.parse_args()
 
     res = generate_image(
         args.prompt, args.output,
         image_size=args.image_size, aspect=args.aspect,
-        backend=args.backend, max_retries=args.max_retries,
+        backend=args.backend, billing=args.billing, max_retries=args.max_retries,
     )
     if res.ok and res.image_bytes:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)

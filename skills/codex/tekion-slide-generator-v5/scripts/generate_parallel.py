@@ -46,7 +46,7 @@ def _classify(error: str) -> str:
 
 
 def _gen_one(task):
-    prompt_file, out_path, image_size, max_retries = task
+    prompt_file, out_path, image_size, max_retries, billing = task
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from codex_app_server_client import generate_image
 
@@ -59,6 +59,7 @@ def _gen_one(task):
             image_size=image_size,
             aspect="16:9",
             backend="exec",
+            billing=billing,
             max_retries=max_retries,
         )
         if res.ok and res.image_bytes:
@@ -79,6 +80,8 @@ def main() -> int:
     ap.add_argument("--max-retries", type=int, default=2)
     ap.add_argument("--max-rounds", type=int, default=5,
                     help="レート制限フォールバックの最大ラウンド数（並列度を段階的に下げて再試行）")
+    ap.add_argument("--billing", default="subscription", choices=["subscription", "api"],
+                    help="subscription=サブスク枠(既定・OPENAI_API_KEY除去) / api=OpenAI API従量課金(キー使用)")
     ap.add_argument("--image-size", default="2K", choices=["512px", "1K", "2K", "4K"])
     args = ap.parse_args()
 
@@ -88,19 +91,28 @@ def main() -> int:
         print(f"❌ プロンプトが見つかりません: {args.prompts_dir}/*.txt", file=sys.stderr)
         return 1
 
-    # 並列前にトークンを更新（refresh token 競合を防ぐ）
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from codex_app_server_client import warmup_auth
-    print("🔑 認証ウォームアップ中（並列前にトークン更新）...", file=sys.stderr)
-    if not warmup_auth():
-        print("❌ Codex 認証が無効です。`codex login` で再ログインしてください。", file=sys.stderr)
-        return 2
-    print("✓ 認証OK。並列生成を開始します。", file=sys.stderr)
+    if args.billing == "api":
+        # API 従量課金モード: OPENAI_API_KEY を使う。OAuth トークン更新は不要なので warmup しない。
+        if not os.environ.get("OPENAI_API_KEY"):
+            print("⚠️  --billing api だが OPENAI_API_KEY が未設定。Codex はサブスク枠に切替わります。",
+                  file=sys.stderr)
+        else:
+            print("💳 課金モード: OpenAI API（従量課金）。OPENAI_API_KEY を使用します。", file=sys.stderr)
+    else:
+        # サブスク枠: 並列前にトークンを更新（refresh token 競合による失効を防ぐ）
+        from codex_app_server_client import warmup_auth
+        print("🔑 課金モード: サブスク枠。認証ウォームアップ中（並列前にトークン更新）...", file=sys.stderr)
+        if not warmup_auth():
+            print("❌ Codex 認証が無効です。`codex login` で再ログインしてください。", file=sys.stderr)
+            return 2
+        print("✓ 認証OK。並列生成を開始します。", file=sys.stderr)
 
     tasks = []
     for pf in prompt_files:
         base = os.path.splitext(os.path.basename(pf))[0]
-        tasks.append((pf, os.path.join(args.output_dir, f"{base}.png"), args.image_size, args.max_retries))
+        tasks.append((pf, os.path.join(args.output_dir, f"{base}.png"),
+                      args.image_size, args.max_retries, args.billing))
 
     total = len(tasks)
     done_ok = set()

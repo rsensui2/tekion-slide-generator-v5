@@ -81,6 +81,18 @@ ${PY} "${SKILL_DIR}/scripts/generate_parallel.py" \
   `token_revoked`（認証失効）を検知したら停止し **`codex login` 再ログイン**を促す。
 - サブスク枠の画像ターンは消費が速い（公式: 通常の3-5倍）。**累積**で日次/週次 usage limit に達し得る。
 
+##### 課金モード（`--billing`）
+
+| モード | 指定 | 挙動 |
+|---|---|---|
+| **subscription（既定）** | （指定不要）/ `--billing subscription` | ChatGPT/Codex サブスク枠で生成。実行時に `OPENAI_API_KEY` を**除去**（気づかず従量課金される事故を防ぐ安全策）。 |
+| **api** | `--billing api` | **OpenAI API 従量課金**で生成。`OPENAI_API_KEY` を使う（枠を消費したくない/usage limit回避に）。 |
+
+- 環境変数 `CODEX_SLIDES_BILLING=api` でも切替可。
+- 実行時にどちらのモードかをログに明示（`[サブスク枠]` / `[API従量課金]`）。黙って剥がさない。
+- `--billing api` でも `OPENAI_API_KEY` 未設定なら自動的にサブスク枠にフォールバック（警告を表示）。
+- api モードは usage limit を消費しないため warmup（OAuthトークン更新）はスキップする。
+
 #### A. in-loop（1〜2枚のときだけ / 内蔵 image_gen を1枚ずつ＝逐次）
 
 1. 内蔵画像生成ツール（`$imagegen` / image_gen）で Phase 2 のプロンプトを **16:9・2K** で1枚生成。
