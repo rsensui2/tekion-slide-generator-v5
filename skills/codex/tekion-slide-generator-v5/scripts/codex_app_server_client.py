@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import re
@@ -43,6 +44,36 @@ CODEX_BIN = os.environ.get("CODEX_BIN", "codex")
 REAL_CODEX_HOME = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
 GENERATED_IMAGES_DIR = REAL_CODEX_HOME / "generated_images"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+# warmup が更新した「新鮮な auth.json」のパスを並列ワーカー（別プロセス）へ渡す環境変数。
+# macOS の ProcessPool=spawn / subprocess ワーカーはモジュールグローバルを引き継がないため、
+# モジュール変数ではなく環境変数で伝播する（これが無いとワーカーが実 auth.json をコピー元にしてしまう）。
+WARM_AUTH_ENV = "CODEX_SLIDES_WARM_AUTH"
+
+
+def _auth_source() -> Path:
+    """隔離 CODEX_HOME に入れる auth.json のコピー元を返す。
+
+    warmup 済みなら「warmup が更新した新鮮コピー」、未済なら実ホームの auth.json。
+    どちらの場合も**実 auth.json は読むだけ**で、v5 が実 auth.json を書き換えることはない。
+    """
+    warm = os.environ.get(WARM_AUTH_ENV)
+    if warm and os.path.exists(warm):
+        return Path(warm)
+    return REAL_CODEX_HOME / "auth.json"
+
+
+def _cleanup_warm_auth() -> None:
+    """終了時に warmup が残した auth コピー（認証情報）を削除する。"""
+    warm = os.environ.get(WARM_AUTH_ENV)
+    if warm and os.path.exists(warm):
+        try:
+            os.remove(warm)
+        except OSError:
+            pass
+
+
+atexit.register(_cleanup_warm_auth)
 
 # サブスク枠の画像生成ターンは枠消費が速い（公式: 通常の3-5倍）。
 # 並列はスキル側で抑えるが、1枚あたりの上限時間は長めに確保する。
@@ -109,9 +140,9 @@ def _make_isolated_home() -> str:
     MCP サーバ等の重い設定は持ち込まない最小 config.toml を置く。
     """
     home = tempfile.mkdtemp(prefix="codex_slides_home_")
-    real_auth = REAL_CODEX_HOME / "auth.json"
-    if real_auth.exists():
-        shutil.copy2(real_auth, os.path.join(home, "auth.json"))
+    src_auth = _auth_source()   # 実ホーム固定をやめ、warmup済みなら新鮮コピーを使う
+    if src_auth.exists():
+        shutil.copy2(src_auth, os.path.join(home, "auth.json"))
     with open(os.path.join(home, "config.toml"), "w", encoding="utf-8") as f:
         f.write(f'model = "{_real_model()}"\n')
         f.write('model_reasoning_effort = "low"\n')
@@ -119,25 +150,48 @@ def _make_isolated_home() -> str:
 
 
 def warmup_auth(timeout: int = 90) -> bool:
-    """並列ファンアウト前に、実ホームで単発呼び出しを行いアクセストークンを更新する。
+    """並列ファンアウト前にアクセストークンを更新する（**実 auth.json は書き換えない**）。
 
-    これを先に1回だけ実行しておくと、以降の並列ワーカー（コピーした新鮮な auth.json を
-    使う）はバッチ中にトークン更新を要せず、refresh token の競合が起きない。
+    実ホームで直接 codex を走らせるとトークンがローテーションされ、常駐の Codex アプリ等が
+    握る旧トークンが失効して再認証地獄になる。これを避けるため、warmup も**隔離ホームの中**で
+    実行し、トークン更新を隔離コピー側に閉じ込める。更新後の新鮮 auth.json を退避し、
+    環境変数 WARM_AUTH_ENV で以降の並列ワーカー（別プロセス）のコピー元として伝播する。
+    → v5 が実 auth.json を進める主体にならず、Codex アプリとの競合（再認証）が消える。
+
     画像生成はせず軽量プロンプトで済ませる。成功可否を返す。
     """
+    home = _make_isolated_home()   # この時点では _auth_source()=実ホーム（読むだけ）
     try:
         proc = subprocess.run(
             [CODEX_BIN, "exec", "--skip-git-repo-check", "-c", "model_reasoning_effort=low", "ok"],
-            capture_output=True, text=True, timeout=timeout, env=_codex_env(),
+            capture_output=True, text=True, timeout=timeout,
+            env=_codex_env(home),   # CODEX_HOME を隔離ホームに上書き＝実 auth.json を触らない
         )
         blob = (proc.stderr or "") + (proc.stdout or "")
-        if "token_revoked" in blob or "refresh_token_reused" in blob or "sign in again" in blob:
+        if any(s in blob for s in ("token_revoked", "refresh_token_reused", "sign in again")):
             print("❌ warmup: Codex 認証が無効です。`codex login` で再ログインしてください。", file=sys.stderr)
             return False
-        return proc.returncode == 0
+        if proc.returncode != 0:
+            return False
+        # 更新後の新鮮 auth.json を退避し、以降のワーカーのコピー元にする（環境変数で子プロセスへ伝播）
+        warm_home_auth = os.path.join(home, "auth.json")
+        if os.path.exists(warm_home_auth):
+            fd, warm_path = tempfile.mkstemp(prefix="codex_slides_warmauth_", suffix=".json")
+            os.close(fd)
+            shutil.copy2(warm_home_auth, warm_path)
+            old = os.environ.get(WARM_AUTH_ENV)
+            if old and os.path.exists(old):
+                try:
+                    os.remove(old)
+                except OSError:
+                    pass
+            os.environ[WARM_AUTH_ENV] = warm_path
+        return True
     except Exception as e:
         print(f"⚠️  warmup 失敗: {type(e).__name__}: {e}", file=sys.stderr)
         return False
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
 
 
 def _collect_image_in(generated_dir: Path) -> Optional[Path]:
