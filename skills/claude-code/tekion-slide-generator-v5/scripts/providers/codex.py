@@ -91,9 +91,12 @@ def _composite_logo(image_bytes: bytes, logo_path: str) -> bytes:
     target_h = max(1, int(logo.height * ratio))
     logo = logo.resize((target_w, target_h), Image.LANCZOS)
 
-    margin = int(base.width * 0.025)
-    x = base.width - target_w - margin
-    y = base.height - target_h - margin
+    # 横は幅基準、下は高さ基準。16:9 では幅>高さなので同率でも幅基準だと下余白が
+    # ピクセル換算で大きくなり、ロゴが下端から浮いて「高い位置」に見えてしまう。
+    margin_x = int(base.width * 0.015)
+    margin_y = int(base.height * 0.015)
+    x = base.width - target_w - margin_x
+    y = base.height - target_h - margin_y
     base.alpha_composite(logo, (x, y))
 
     buf = BytesIO()
