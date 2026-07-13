@@ -205,16 +205,26 @@ def _collect_image_in(generated_dir: Path) -> Optional[Path]:
     return max(pngs, key=lambda p: p.stat().st_mtime)
 
 
-def _build_instruction(prompt: str, output_path: str, image_size: str, aspect: str) -> str:
+def _build_instruction(prompt: str, output_path: str, image_size: str, aspect: str,
+                       reference_count: int = 0) -> str:
     """Codex に渡す画像生成指示文を組み立てる。
 
     「生成」と「指定パスへの保存」だけを行わせ、余計な作業をさせない。
+    reference_count > 0 のときは、添付画像を見た目の正として使う指示を加える。
     """
+    ref_lines = ""
+    if reference_count:
+        ref_lines = (
+            "- このプロンプトには参照画像が添付されている。画像生成ツールに参照入力として渡し、"
+            "描く人物・キャラクター・ロゴ等の見た目（画風・髪型・顔立ち・服装・アクセサリー・配色）を"
+            "添付画像に忠実に一致させること\n"
+        )
     return (
         "画像を1枚だけ生成するタスクです。次の要件を厳密に守ってください。\n"
         f"- アスペクト比: {aspect}（横長スライド）\n"
         f"- 解像度: {image_size} 相当の高精細\n"
         "- 組み込みの画像生成ツール（$imagegen / gpt-image-2）を使うこと\n"
+        + ref_lines +
         f"- 生成した最終画像を、必ず次の絶対パスへ保存（コピー）すること: {output_path}\n"
         "- 保存先ディレクトリが無ければ作成してよい\n"
         "- 画像生成と保存以外の作業（説明文の出力・余分なファイル作成・コード実行）はしないこと\n"
@@ -245,9 +255,16 @@ def _generate_via_exec(
     aspect: str,
     timeout: int,
     billing: str = "subscription",
+    reference_images: Optional[list] = None,
 ) -> CodexResult:
-    """``codex exec --full-auto`` を1回実行して画像を得る。"""
-    instruction = _build_instruction(prompt, output_path, image_size, aspect)
+    """``codex exec --full-auto`` を1回実行して画像を得る。
+
+    reference_images を渡すと ``codex exec -i`` で添付し、gpt-image-2 の参照入力として
+    使わせる（キャラクター・ロゴ等の見た目を固定する用途）。
+    """
+    refs = [p for p in (reference_images or []) if p]
+    instruction = _build_instruction(prompt, output_path, image_size, aspect,
+                                     reference_count=len(refs))
     out_dir = os.path.dirname(os.path.abspath(output_path)) or os.getcwd()
     os.makedirs(out_dir, exist_ok=True)
 
@@ -262,16 +279,28 @@ def _generate_via_exec(
         # 1枚あたりのターン時間を短縮する（画像そのものの品質は gpt-image-2 が担う）。
         "-c", "model_reasoning_effort=low",
         "-C", out_dir,
-        instruction,
     ]
+    stdin_input = None
+    if refs:
+        for ref in refs:
+            cmd.extend(["-i", ref])
+        # `-i <FILE>...` は複数ファイルを取るため、直後の位置引数プロンプトを
+        # 画像パスとして飲み込んでしまう。参照画像がある場合はプロンプトを
+        # stdin("-") で渡す必要がある。
+        cmd.append("-")
+        stdin_input = instruction
+    else:
+        cmd.append(instruction)
     slide_name = os.path.basename(output_path)
     use_api = (billing == "api")
-    print(f"🎨 Codex(exec)生成開始: {slide_name} ({aspect}/{image_size}) [{_billing_label(billing)}]",
+    ref_label = f" +ref×{len(refs)}" if refs else ""
+    print(f"🎨 Codex(exec)生成開始: {slide_name} ({aspect}/{image_size}{ref_label}) [{_billing_label(billing)}]",
           file=sys.stderr)
 
     try:
         proc = subprocess.run(
             cmd,
+            input=stdin_input,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -478,6 +507,7 @@ def generate_image(
     max_retries: int = 3,
     retry_delay: float = 2.0,
     timeout: int = DEFAULT_EXEC_TIMEOUT,
+    reference_images: Optional[list] = None,
 ) -> CodexResult:
     """Codex で画像を1枚生成し、バイト列を返す。
 
@@ -491,13 +521,30 @@ def generate_image(
         max_retries: 失敗時の再試行回数
         retry_delay: 初回リトライ待機秒（指数バックオフ）
         timeout: 1回あたりの上限秒
+        reference_images: 参照画像パスのリスト。キャラクター・ロゴ等の見た目の正として
+            gpt-image-2 に渡す。app-server バックエンドは未対応のため、指定時は exec に迂回する
 
     Returns:
         CodexResult（ok / image_bytes / error / attempts / backend）
     """
     chosen = resolve_backend(backend)
     bill = resolve_billing(billing)
+
+    refs = [p for p in (reference_images or []) if p]
+    missing = [p for p in refs if not os.path.exists(p)]
+    if missing:
+        for p in missing:
+            print(f"⚠️  参照画像が見つかりません（スキップ）: {p}", file=sys.stderr)
+        refs = [p for p in refs if os.path.exists(p)]
+
+    if refs and chosen == "app-server":
+        # app-server の turn/start に画像 item を渡す口はまだ実装していない。
+        # 参照画像が要るときは exec（codex exec -i）に迂回する。
+        print("ℹ️  参照画像は app-server 未対応のため exec バックエンドで実行します", file=sys.stderr)
+        chosen = "exec"
+
     runner = _generate_via_app_server if chosen == "app-server" else _generate_via_exec
+    runner_kwargs = {"reference_images": refs} if chosen == "exec" and refs else {}
 
     last_error = None
     for attempt in range(1, max_retries + 1):
@@ -506,7 +553,7 @@ def generate_image(
             print(f"⏳ リトライ {attempt}/{max_retries} (待機 {wait:.1f}s): {os.path.basename(output_path)}",
                   file=sys.stderr)
             time.sleep(wait)
-        result = runner(prompt, output_path, image_size, aspect, timeout, bill)
+        result = runner(prompt, output_path, image_size, aspect, timeout, bill, **runner_kwargs)
         result.attempts = attempt
         if result.ok:
             return result
@@ -529,12 +576,16 @@ def _main() -> int:
     ap.add_argument("--billing", default="auto", choices=["auto", "subscription", "api"],
                     help="subscription=サブスク枠(既定) / api=OpenAI API従量課金")
     ap.add_argument("--max-retries", type=int, default=2)
+    ap.add_argument("--reference-image", action="append", dest="reference_images",
+                    metavar="FILE", default=None,
+                    help="参照画像（複数指定可）。キャラクター・ロゴ等の見た目の正として gpt-image-2 に渡す")
     args = ap.parse_args()
 
     res = generate_image(
         args.prompt, args.output,
         image_size=args.image_size, aspect=args.aspect,
         backend=args.backend, billing=args.billing, max_retries=args.max_retries,
+        reference_images=args.reference_images,
     )
     if res.ok and res.image_bytes:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)

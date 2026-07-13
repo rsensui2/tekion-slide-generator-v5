@@ -289,7 +289,7 @@ ${PYTHON} ${SKILL_DIR}/scripts/render_test.py \
 
 ## Phase 3.7: リファレンス画像マップ作成（任意）
 
-特定のスライドに参照画像（キャラクター・ロゴ・写真等）をGeminiに渡したい場合、リファレンス画像マップを作成する。
+特定のスライドに参照画像（キャラクター・ロゴ・写真等）を渡したい場合、リファレンス画像マップを作成する。Gemini / OpenAI / Codex の全プロバイダで有効（Codex は `codex exec -i` 経由で gpt-image-2 に渡される）。キャラクターの見た目を固定したいときは、プロンプト側にも「参照画像の人物に忠実に」と一言添えると安定する。
 
 ```bash
 cat > ${SESSION_DIR}/reference_image_map.json << 'JSONEOF'

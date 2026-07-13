@@ -5,6 +5,7 @@ OpenAI API（従量課金）の代わりに、Codex CLI 内蔵の gpt-image-2 �
 本プロバイダは「スライドとしての仕上げ」を確定的に行う:
 
   1. Codex に 16:9 / 2K を指示して生成（codex_app_server_client.generate_image）
+     参照画像（キャラクター等）は codex exec -i で gpt-image-2 に渡す
   2. 16:9 へ正規化（letterbox。テキスト欠けを避けるためクロップせずパッド）
   3. ロゴをローカル合成（Codex への添付に頼らず確実に焼き込む）
   4. フッターウォーターマーク焼き込み（footer_utils、既存と同一）
@@ -111,7 +112,7 @@ class CodexImageProvider(ImageProvider):
         name="codex",
         model=MODEL_ID,
         native_16_9=True,
-        max_reference_images=0,           # ロゴ/参照はローカル合成で処理（Codex添付に依存しない）
+        max_reference_images=4,           # codex exec -i で添付（ロゴのみローカル合成で確実に焼く）
         supports_grounding=False,
         supports_thinking=False,
         supports_transparent_bg=False,
@@ -138,6 +139,14 @@ class CodexImageProvider(ImageProvider):
             sys.path.insert(0, scripts_dir)
         from codex_app_server_client import generate_image  # type: ignore
 
+        reference_images = []
+        if request.reference_image_path:
+            if os.path.exists(request.reference_image_path):
+                reference_images.append(request.reference_image_path)
+            else:
+                print(f"⚠️  Codex: 参照画像が見つかりません（スキップ）: {request.reference_image_path}",
+                      file=sys.stderr)
+
         result = generate_image(
             prompt=request.prompt,
             output_path=request.output_path,
@@ -146,6 +155,7 @@ class CodexImageProvider(ImageProvider):
             backend="auto",
             max_retries=request.max_retries,
             retry_delay=request.retry_delay,
+            reference_images=reference_images or None,
         )
 
         if not result.ok or not result.image_bytes:
