@@ -232,7 +232,7 @@ Codex版は **Claude が単一パスで直接作成**する（サブエージェ
 **フィールド:**
 - 必須: `slide_number`(数値), `source_file`(文字列), `title`, `subtitle`, `content`
 - オプション: `key_message`(文字列), `_grounding`(真偽値)
-- 禁止: `slide_type`, `layout`, `visual_description`（デザイン判断はGeminiが行う）
+- 禁止: `slide_type`, `layout`, `visual_description`, `design_notes`, `image_prompt`, `background_color`（デザイン判断は画像生成モデルが行う）
 
 **命名規則:** 表紙 `"00_cover"` / 本編 `"01_xxx"`〜`"97_xxx"` / まとめ `"98_summary"` / CTA `"99_cta"`
 

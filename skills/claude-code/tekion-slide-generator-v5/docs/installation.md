@@ -13,25 +13,31 @@ slide-generator の完全インストール手順。所要時間 5-10分。
 | pip | 最新 | `pip install -U pip` |
 | Claude Code | v2.x 以降 | [公式](https://claude.com/claude-code) |
 | Git | 任意バージョン | clone 用 |
+| Codex CLI | インストール済み・ログイン済み | ChatGPT/Codex サブスクで認証（画像生成に使用） |
 
 ---
 
 ## 1. リポジトリ取得
 
 ```bash
-git clone https://github.com/rsensui2/tekion-slide-generator.git
-cd tekion-slide-generator
+git clone https://github.com/rsensui2/tekion-slide-generator-v5.git
+cd tekion-slide-generator-v5
 ```
+
+このリポジトリには Claude Code 版・Codex ネイティブ版の 2 種類が同梱されている。
+以下は **Claude Code 版**（`skills/claude-code/tekion-slide-generator-v5`）の手順。
 
 ---
 
 ## 2. Claude Code Skill としてインストール
 
+置くのは **リポジトリ全体ではなく、Claude Code 版のスキルフォルダ1個**（`skills/claude-code/tekion-slide-generator-v5`）。
+
 ### オプション A: ディレクトリ配置（推奨・開発しやすい）
 
 ```bash
-# スキルディレクトリに丸ごとコピー
-cp -R . ~/.claude/skills/tekion-slide-generator-v5/
+# スキル1個ぶんのフォルダだけをコピー
+cp -R skills/claude-code/tekion-slide-generator-v5 ~/.claude/skills/
 
 # 再起動後、Claude Code で自動認識
 ```
@@ -41,7 +47,7 @@ cp -R . ~/.claude/skills/tekion-slide-generator-v5/
 将来 GitHub Release で `.skill` ファイルを配布予定。現状は自前ビルド:
 
 ```bash
-python3 /path/to/skill-creator/scripts/package_skill.py . ~/.claude/skills/
+python3 /path/to/skill-creator/scripts/package_skill.py skills/claude-code/tekion-slide-generator-v5 ~/.claude/skills/
 ```
 
 → `~/.claude/skills/tekion-slide-generator-v5.skill` が生成される。
@@ -49,7 +55,7 @@ python3 /path/to/skill-creator/scripts/package_skill.py . ~/.claude/skills/
 ### オプション C: シンボリックリンク（更新が常に反映される）
 
 ```bash
-ln -s $(pwd) ~/.claude/skills/tekion-slide-generator-v5
+ln -s "$(pwd)/skills/claude-code/tekion-slide-generator-v5" ~/.claude/skills/tekion-slide-generator-v5
 ```
 
 git pull するだけで最新版が反映される。開発者向け。
@@ -59,7 +65,7 @@ git pull するだけで最新版が反映される。開発者向け。
 ## 3. Python 依存のインストール
 
 ```bash
-pip install -r requirements.txt
+pip install -r ~/.claude/skills/tekion-slide-generator-v5/requirements.txt
 ```
 
 内訳:
@@ -78,44 +84,38 @@ pip install -r requirements.txt
 
 ---
 
-## 4. API キーの設定
+## 4. セットアップスクリプトの実行
 
-### OpenAI（推奨）
+このスキル（Codex 駆動版）は **OpenAI API キーは不要**。画像生成は Codex 内蔵
+gpt-image-2 を ChatGPT/Codex のサブスク枠で利用する。前提の確認はスクリプトに任せる:
 
-1. https://platform.openai.com/api-keys で API Key を作成
-2. `~/.claude/.env.local` に追記:
+```bash
+bash ~/.claude/skills/tekion-slide-generator-v5/scripts/setup.sh
+```
+
+Python・依存4種・`codex` コマンド・`~/.codex/auth.json`（ログイン状態）を順にチェックし、
+末尾に「この版は OpenAI APIキー不要。Codex サブスク枠で画像生成します」と表示されれば成功。
+
+未ログインと警告が出た場合は、`codex` を一度起動して ChatGPT/Codex アカウントでログインする:
+
+```bash
+codex login
+codex login status   # ログイン確認
+codex exec "hello"    # 実行確認（テキスト応答が返れば疎通OK）
+```
+
+### API 課金版（OpenAI / Gemini）を使いたい場合のみ
+
+既定の Codex 版を使わず、従量課金の OpenAI / Gemini API で生成したい場合のみ以下を設定する
+（通常は不要）:
 
 ```bash
 echo 'OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx' >> ~/.claude/.env.local
+echo 'GEMINI_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXX' >> ~/.claude/.env.local
 chmod 600 ~/.claude/.env.local
 ```
 
-### Gemini（オプション・大量生成用）
-
-1. https://aistudio.google.com/apikey で API Key を作成
-2. `~/.claude/.env.local` に追記:
-
-```bash
-echo 'GEMINI_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXX' >> ~/.claude/.env.local
-```
-
-### 動作確認
-
-```bash
-source ~/.claude/.env.local
-python3 -c "
-import os, requests
-r = requests.post(
-    'https://api.openai.com/v1/images/generations',
-    headers={'Authorization': f'Bearer {os.environ[\"OPENAI_API_KEY\"]}'},
-    json={'model':'gpt-image-2','prompt':'test','size':'1024x1024','quality':'low','n':1,'output_format':'png'},
-    timeout=60,
-)
-print('OpenAI:', r.status_code)
-"
-```
-
-200 なら成功。
+利用時は `--provider openai` / `--provider gemini` を明示する。
 
 ---
 
@@ -142,7 +142,7 @@ Claude Code を起動して以下を確認:
 
 ## 6. 動作テスト
 
-### 簡単なスライド1枚生成
+### 簡単なスライド1枚生成（Codex経由）
 
 ```bash
 # 作業ディレクトリ
@@ -156,18 +156,17 @@ in the center, minimal design, white background with blue accent.
 ※スライド上の全テキストは日本語で表示すること。
 EOF
 
-# 画像生成
-source ~/.claude/.env.local
+# 画像生成（Codex サブスク枠。APIキー不要）
 python3 ~/.claude/skills/tekion-slide-generator-v5/scripts/generate_slide_with_retry.py \
-  --provider openai \
+  --provider codex \
   --prompt "$(cat ${TEST}/prompts/test_01.txt)" \
   --output ${TEST}/images/test_01.png \
-  --api-key "${OPENAI_API_KEY}" \
-  --image-size 1K \
-  --quality low
+  --image-size 1K
 ```
 
-`${TEST}/images/test_01.png` が生成されれば完了。
+`${TEST}/images/test_01.png` が生成されれば完了（1枚あたり数十秒〜1分程度かかる）。
+最も確実なのは、実際に Claude Code へ「この内容を1枚のスライドにして」と話しかけて
+16:9 画像が出るところまで確認する方法。
 
 ---
 
