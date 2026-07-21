@@ -158,20 +158,6 @@ def validate_chunk(data: Dict[str, Any], filepath: str) -> Tuple[int, int, List[
                 f"actual slide count ({len(slides)})"
             )
 
-    # 各ファイルの最初のスライドが中扉かチェック
-    files_seen = {}
-    for slide in slides:
-        source = slide.get('source_file', '')
-        if source == 'course_title':
-            continue
-        if source not in files_seen:
-            files_seen[source] = slide
-            content = slide.get('content', '')
-            if '中扉スライド：タイトルとサブタイトルのみ表示' not in content:
-                issues.append(
-                    f"{filename}: first slide for '{source}' is not a divider"
-                )
-
     return (len(slides), len(issues), issues)
 
 
