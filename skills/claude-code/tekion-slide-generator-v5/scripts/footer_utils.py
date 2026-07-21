@@ -9,12 +9,15 @@ PNG 保存前に各スライド画像へ適用され、以降の全ての配布�
 
 設計: project/docs/skill/footer-watermark-spec.md
 """
+import os
 import sys
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 
-FOOTER_TEXT = "TEKION Slide Generator v5"
+# 環境変数 SLIDE_FOOTER_TEXT で上書き可能（未設定時は従来どおり TEKION 透かし）。
+# 空文字（SLIDE_FOOTER_TEXT="") を渡すとフッターを焼き込まない。
+FOOTER_TEXT = os.environ.get("SLIDE_FOOTER_TEXT", "TEKION Slide Generator v5")
 FOOTER_COLOR = (156, 163, 175, 255)  # Gray-400 / RGBA
 FOOTER_FONT_PATH = "/System/Library/Fonts/Helvetica.ttc"
 FOOTER_FONT_SIZE_RATIO = 0.015        # 画像高さに対する比率
@@ -71,6 +74,10 @@ def apply_footer(
         フッター焼き込み済みの PIL Image（元画像とは別オブジェクト）
     """
     out = img.copy()
+
+    # 空文字なら透かしを焼き込まずそのまま返す（第三者向け資料などロゴ/透かし不要時）。
+    if text is None or str(text).strip() == "":
+        return out
 
     if out.mode not in ("RGB", "RGBA"):
         out = out.convert("RGBA")
