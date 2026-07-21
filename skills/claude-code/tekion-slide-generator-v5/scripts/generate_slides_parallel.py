@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--prompts-dir', required=True, help='Directory containing prompt text files (*.txt)')
     parser.add_argument('--output-dir', required=True, help='Output directory for slide images')
     parser.add_argument('--api-key', default='', help='API key (Gemini/OpenAI用。codexはサブスク枠のため不要)')
-    parser.add_argument('--provider', default='openai', choices=['gemini', 'openai', 'codex'],
+    parser.add_argument('--provider', default='codex', choices=['gemini', 'openai', 'codex'],
                         help='画像生成プロバイダ（gemini / openai / codex）')
     parser.add_argument('--max-parallel', type=int, default=10,
                         help='並列数（OpenAI Tier3=10、Gemini=20、codexはサブスク枠のため3-4推奨）')

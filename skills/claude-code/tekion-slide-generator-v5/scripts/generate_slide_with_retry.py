@@ -351,7 +351,7 @@ def main():
     )
     parser.add_argument('--prompt', required=True, help='画像生成プロンプト')
     parser.add_argument('--output', required=True, help='出力画像パス')
-    parser.add_argument('--provider', default='openai', choices=['gemini', 'openai', 'codex'],
+    parser.add_argument('--provider', default='codex', choices=['gemini', 'openai', 'codex'],
                         help='画像生成プロバイダ（gemini / openai / codex）')
     parser.add_argument('--api-key', help='APIキー（省略時は環境変数を使用）')
     parser.add_argument('--max-retries', type=int, default=3, help='最大リトライ回数（デフォルト: 3）')
